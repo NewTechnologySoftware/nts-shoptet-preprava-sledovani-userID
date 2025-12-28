@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sledování zásilek - Alena</title>
+    <style>
+        :root {
+            --primary: #000;
+            --accent: #28a745;
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --text: #212529;
+            --text-muted: #6c757d;
+        }
+
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .user-badge { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 1.1rem; }
+        .user-icon { width: 32px; height: 32px; background: #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        
+        h1 { font-size: 1.4rem; margin: 0; color: #333; }
+        hr { border: 0; border-top: 1px solid #ddd; margin-bottom: 30px; }
+
+        .container { max-width: 800px; margin: 0 auto; }
+
+        /* Accordion / Card */
+        .order-card { background: var(--card); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; transition: all 0.3s ease; }
+        
+        .card-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fff; border-bottom: 1px solid transparent; }
+        .card-header:hover { background: #fcfcfc; }
+        .card-header.active { border-bottom: 1px solid #eee; }
+        
+        .order-title { font-size: 1.1rem; font-weight: 700; margin: 0; }
+        .arrow { transition: transform 0.3s ease; width: 20px; height: 20px; opacity: 0.6; }
+        .card-header.active .arrow { transform: rotate(180deg); }
+
+        .card-body { display: none; padding: 20px; animation: fadeIn 0.4s ease; }
+        .card-body.open { display: block; }
+
+        /* Timeline Items */
+        .timeline-item { display: flex; margin-bottom: 20px; position: relative; }
+        .timeline-item:last-child { margin-bottom: 0; }
+        
+        .status-icon { width: 24px; min-width: 24px; margin-right: 15px; display: flex; justify-content: center; padding-top: 2px; }
+        
+        .content { flex: 1; }
+        .text { font-size: 1rem; line-height: 1.4; }
+        .time { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; display: block; }
+
+        /* Status Styles */
+        .status-done .text { color: #000; font-weight: 500; }
+        .status-done .icon-check { color: var(--accent); font-weight: bold; font-size: 1.2rem; }
+
+        .status-active .text { color: #000; font-weight: 600; }
+        .status-active .pulsing-dot { 
+            width: 12px; height: 12px; background: red; border-radius: 50%; 
+            box-shadow: 0 0 0 0 rgba(255, 0, 0, 1);
+            animation: pulse-red 2s infinite;
+        }
+
+        .status-future .text { color: #ccc; }
+        
+        .indent { margin-left: 30px; border-left: 2px solid #eee; padding-left: 15px; }
+
+        /* Tracking Button */
+        .track-btn { display: inline-block; background: #007bff; color: white; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-size: 0.9rem; margin-top: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .track-btn:hover { background: #0056b3; }
+
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Aktivní výhry z aukcí v přepravě:</h1>
+            <div class="user-badge">
+                <span>Alena</span>
+                <div class="user-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+            </div>
+        </div>
+        <hr>
+
+        <div id="orders-list">
+            <div style="text-align:center; color:#999;">Načítání dat...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
+        import { getDatabase, ref, onValue } 
+        from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDAUEi98gTeiWeNZHf6W73UpZGluS3N8bI",
+            authDomain: "shoptet-alena-packety.firebaseapp.com",
+            databaseURL: "https://shoptet-alena-packety-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "shoptet-alena-packety",
+            storageBucket: "shoptet-alena-packety.firebasestorage.app",
+            messagingSenderId: "717548214526",
+            appId: "1:717548214526:web:8a8de5587c2aa4f50bedaf"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const listContainer = document.getElementById('orders-list');
+
+        onValue(ref(db, 'orders'), (snapshot) => {
+            const data = snapshot.val();
+            listContainer.innerHTML = '';
+
+            if (!data) {
+                listContainer.innerHTML = '<div style="text-align:center; color:#999;">Žádné aktivní zásilky.</div>';
+                return;
+            }
+
+            const orders = Object.entries(data).reverse(); // Nejnovější první
+            const isSingle = orders.length === 1;
+
+            orders.forEach(([key, order], index) => {
+                // Kontejner karty
+                const card = document.createElement('div');
+                card.className = 'order-card';
+
+                // Generování timeline HTML
+                let timelineHtml = '';
+                let firstUncheckedFound = false;
+
+                if (order.steps) {
+                    order.steps.forEach(step => {
+                        // Přeskočíme admin-only texty pokud existují (např. TRACKING_BTN raw data se zpracuje níže)
+                        let displayText = step.text;
+                        let extraHtml = '';
+
+                        // Detekce Tracking tlačítka
+                        if (displayText.startsWith('TRACKING_BTN|')) {
+                            const url = displayText.split('|')[1];
+                            displayText = ''; // Schovat text
+                            extraHtml = `<a href="${url}" target="_blank" class="track-btn">Sledovat zásilku v přepravě</a>`;
+                        }
+
+                        // Detekce stavu (Done, Active, Future)
+                        let statusClass = 'status-future';
+                        let iconHtml = '';
+
+                        if (step.done) {
+                            statusClass = 'status-done';
+                            iconHtml = '<span class="icon-check">✓</span>';
+                        } else if (!firstUncheckedFound) {
+                            statusClass = 'status-active';
+                            iconHtml = '<div class="pulsing-dot"></div>';
+                            firstUncheckedFound = true;
+                        } else {
+                            statusClass = 'status-future';
+                        }
+
+                        const timeStr = step.time ? new Date(step.time).toLocaleString('cs-CZ', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}) : '';
+                        const indentClass = step.indent ? 'indent' : '';
+
+                        timelineHtml += `
+                            <div class="timeline-item ${statusClass} ${indentClass}">
+                                <div class="status-icon">${iconHtml}</div>
+                                <div class="content">
+                                    ${displayText ? `<span class="text">${displayText}</span>` : ''}
+                                    ${extraHtml}
+                                    ${timeStr ? `<span class="time">${timeStr}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Logika akordeonu: Pokud je jen 1, je otevřená. Pokud víc, jsou zavřené.
+                const isOpen = isSingle ? 'open' : '';
+                const isActiveHeader = isSingle ? 'active' : '';
+
+                card.innerHTML = `
+                    <div class="card-header ${isActiveHeader}" onclick="toggleAccordion(this)">
+                        <h2 class="order-title">${order.name}</h2>
+                        ${!isSingle ? `<svg class="arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>` : ''}
+                    </div>
+                    <div class="card-body ${isOpen}">
+                        ${timelineHtml}
+                    </div>
+                `;
+                
+                listContainer.appendChild(card);
+            });
+        });
+
+        // Globální funkce pro akordeon
+        window.toggleAccordion = (header) => {
+            // Pokud je jen jedna objednávka, zakázat zavírání (volitelné, ale vypadá to lépe)
+            if (document.querySelectorAll('.order-card').length === 1) return;
+
+            header.classList.toggle('active');
+            const body = header.nextElementSibling;
+            body.classList.toggle('open');
+        };
+
+    </script>
+</body>
+</html>
