@@ -26,6 +26,99 @@
 
         .container { max-width: 800px; margin: 0 auto; }
 
+        /* VIP Styles - Upravené pro responzivitu */
+        #vip-container { display: none; text-align: center; margin-top: 10px; margin-bottom: 20px; animation: fadeIn 0.5s ease; }
+        .vip-heading { 
+            color: #DAA520; /* Zlatožlutá */
+            font-size: 1.5rem; 
+            font-weight: bold; 
+            margin: 0; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 10px; 
+            justify-content: center;
+        }
+        
+        .vip-question-mark {
+            background: #000;
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            font-family: sans-serif;
+            font-weight: bold;
+        }
+
+        .vip-tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            top: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            width: 280px;
+            /* Přidáno max-width pro jistotu na menších desktop oknech */
+            max-width: 90vw; 
+            text-align: left;
+            font-size: 0.9rem;
+            font-weight: normal;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: opacity 0.3s, visibility 0.3s;
+            line-height: 1.4;
+        }
+        
+        /* Šipka tooltipu (jen pro desktop) */
+        .vip-tooltip::after {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: transparent transparent black transparent;
+        }
+
+        .vip-tooltip strong { display: block; margin-bottom: 5px; font-size: 1rem; color: #DAA520; }
+
+        .vip-question-mark:hover .vip-tooltip,
+        .vip-question-mark.active .vip-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* --- MEDIA QUERY PRO MOBILNÍ ZAŘÍZENÍ --- */
+        @media (max-width: 768px) {
+            .vip-tooltip {
+                /* Na mobilu fixní pozice uprostřed obrazovky (jako modál) */
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 85%; /* Šířka na většinu obrazovky */
+                max-width: 400px;
+                box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5); /* Ztmaví pozadí okolo */
+                padding: 20px;
+                border: 1px solid #444;
+            }
+
+            /* Skrytí malé šipky, protože bublina už "nevisí" na otazníku */
+            .vip-tooltip::after {
+                display: none;
+            }
+        }
+
         /* Accordion / Card */
         .order-card { background: var(--card); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; transition: all 0.3s ease; }
         
@@ -90,6 +183,19 @@
                 </div>
             </div>
         </div>
+
+        <div id="vip-container">
+            <h2 class="vip-heading">
+                VIP zůstatek účtu: <span id="vip-amount-display">0</span> Kč
+                <div class="vip-question-mark" onclick="toggleVipTooltip(event)">
+                    ?
+                    <div class="vip-tooltip">
+                        <strong>Co je to VIP zůstatek účtu?</strong>
+                        Můžete NTS Shoptetu zaplatit u některých objednávek peníze navíc nebo kdykoli nám do Shoptetu donést nějaké peníze jen tak navíc. Ty se zapíší tady jako VIP zůstatek účtu. Při dalších objednávkách strhneme peníze z tohoto zůstatku a nemusíte nic zaplatit. Až dojdou, budete muset standardně zaplatit nebo zaplatíte, pokud bude Váš nákup dražší než zůstatek účtu. Při častém použití zůstatku účtu bude Váš VIP účet dostávat speciální slevy pouze pro Vás!
+                    </div>
+                </div>
+            </h2>
+        </div>
         <hr>
 
         <div id="orders-list">
@@ -114,6 +220,37 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
+        
+        // --- LOGIKA VIP ZŮSTATKU ---
+        const vipContainer = document.getElementById('vip-container');
+        const vipAmountDisplay = document.getElementById('vip-amount-display');
+
+        onValue(ref(db, 'VIP_ucet'), (snapshot) => {
+            const val = snapshot.val();
+            // Pokud je hodnota "deficit_nula" nebo prázdná/null -> Skrýt
+            if (!val || val === 'deficit_nula') {
+                vipContainer.style.display = 'none';
+            } else {
+                // Jinak zobrazit a vypsat číslo
+                vipContainer.style.display = 'block';
+                vipAmountDisplay.innerText = val;
+            }
+        });
+
+        // Ovládání tooltipu na mobilu (klik)
+        window.toggleVipTooltip = (e) => {
+            e.stopPropagation(); // Zabrání probublání na document
+            const qMark = e.currentTarget;
+            qMark.classList.toggle('active');
+        };
+
+        // Skrytí tooltipu při kliknutí mimo
+        document.addEventListener('click', (e) => {
+            const tooltips = document.querySelectorAll('.vip-question-mark.active');
+            tooltips.forEach(t => t.classList.remove('active'));
+        });
+        // ---------------------------
+
         const listContainer = document.getElementById('orders-list');
 
         onValue(ref(db, 'orders'), (snapshot) => {
